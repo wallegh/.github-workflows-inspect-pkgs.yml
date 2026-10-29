@@ -1,0 +1,37 @@
+name: Inspect extra packages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Scan
+      run: |
+        set +e
+        git clone -b owrt --depth 1 https://github.com/VIKINGYFY/immortalwrt.git openwrt
+        cd openwrt
+
+        echo "===== 1. feeds.conf.default ====="
+        cat feeds.conf.default
+
+        echo; echo "===== 2. 目标默认包定义 ====="
+        cat target/linux/qualcommax/ipq60xx/target.mk
+        grep -n "DEFAULT_PACKAGES\|DEFAULT_PACKAGES" target/linux/qualcommax/Makefile
+
+        echo; echo "===== 3. 仓库内(未拉 feeds)查找 ====="
+        grep -rnE "router-tool|fullconenat" include target package \
+          --include=Makefile --include=*.mk --include=*.config 2>/dev/null | head -30
+        find . -maxdepth 3 -iname "*router-tool*" -o -maxdepth 3 -iname "*fullconenat*" | head
+
+        echo; echo "===== 4. 拉取 feeds 后再查 ====="
+        ./scripts/feeds update -a > /dev/null 2>&1
+        grep -rlE "luci-app-router-tool|luci-app-fullconenat" feeds/*/ 2>/dev/null | head -20
+        echo "-- 哪些 Makefile 把它们写进了 DEPENDS 或 DEFAULT --"
+        grep -rnE "router-tool|fullconenat" feeds/*/*/*/Makefile feeds/*/*/Makefile 2>/dev/null | head -30
+
+        echo; echo "===== 5. 是否有默认 .config / 预置配置 ====="
+        ls -la | head -40
+        ls diy* files config* *.config 2>/dev/null
+        exit 0
